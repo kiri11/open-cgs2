@@ -1,0 +1,8 @@
+{
+  "title": "Assist",
+  "default": "auto",
+  "side": "Side.qml",
+  "overlay": "Overlay.qml",
+  "order": 10,
+  "layer": 20
+}
