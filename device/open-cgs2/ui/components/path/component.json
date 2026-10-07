@@ -1,0 +1,7 @@
+{
+  "title": "PATH trains",
+  "default": false,
+  "position": "left",
+  "page": "Page.qml",
+  "internet": true
+}
