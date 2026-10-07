@@ -1,0 +1,5 @@
+{
+  "title": "Lights",
+  "default": "auto",
+  "tiles": "Tiles.qml"
+}
