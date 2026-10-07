@@ -1,0 +1,7 @@
+{
+  "title": "Spotify",
+  "default": "auto",
+  "button": "Button.qml",
+  "overlay": "Overlay.qml",
+  "layer": 10
+}
