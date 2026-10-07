@@ -1,0 +1,5 @@
+/target/
+/adbd-auth/target/
+/dist/
+/emulator/fonts/
+__pycache__/
