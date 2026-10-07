@@ -1,0 +1,15 @@
+singleton Fmt 1.0 Fmt.qml
+AirView 1.0 AirView.qml
+ChartView 1.0 ChartView.qml
+ClockView 1.0 ClockView.qml
+Icon 1.0 Icon.qml
+KeyCap 1.0 KeyCap.qml
+Keyboard 1.0 Keyboard.qml
+RingView 1.0 RingView.qml
+SettingsButton 1.0 SettingsButton.qml
+SettingsView 1.0 SettingsView.qml
+SignalBars 1.0 SignalBars.qml
+TimeStepper 1.0 TimeStepper.qml
+Toggle 1.0 Toggle.qml
+WeatherIcon 1.0 WeatherIcon.qml
+Wheel 1.0 Wheel.qml
