@@ -1,0 +1,8 @@
+{
+  "title": "Weather",
+  "default": "auto",
+  "position": "right",
+  "page": "Page.qml",
+  "status": "Status.qml",
+  "order": 10
+}
