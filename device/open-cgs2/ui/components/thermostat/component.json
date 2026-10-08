@@ -1,0 +1,6 @@
+{
+  "title": "Thermostat",
+  "default": "auto",
+  "position": "up",
+  "page": "Page.qml"
+}
