@@ -1,0 +1,8 @@
+{
+  "title": "Intercom",
+  "default": "auto",
+  "side": "Side.qml",
+  "overlay": "Overlay.qml",
+  "order": 20,
+  "layer": 80
+}
