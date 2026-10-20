@@ -1,0 +1,6 @@
+{
+  "title": "Doorbell",
+  "default": "auto",
+  "overlay": "Overlay.qml",
+  "layer": 70
+}
