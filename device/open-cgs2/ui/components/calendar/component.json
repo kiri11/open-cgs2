@@ -1,0 +1,6 @@
+{
+  "title": "Calendar",
+  "default": "auto",
+  "status": "Status.qml",
+  "order": 20
+}
