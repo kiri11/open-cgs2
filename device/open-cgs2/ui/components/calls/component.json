@@ -1,0 +1,6 @@
+{
+  "title": "Meeting alerts",
+  "default": false,
+  "overlay": "Overlay.qml",
+  "layer": 60
+}
