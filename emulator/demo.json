@@ -1,0 +1,9 @@
+{
+  "device": {"name": "Living Room"},
+  "units": {"temperature": "C", "clock": "24h"},
+  "location": {"latitude": 52.37, "longitude": 4.9},
+  "components": {
+    "path": true,
+    "calls": false
+  }
+}
