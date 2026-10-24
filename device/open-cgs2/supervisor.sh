@@ -1,6 +1,7 @@
 #!/bin/sh
 # Keeps sensord, the screen (panel and qmlscene), wpa_supplicant, dhcpcd and, on firmware without
-# one, ntpd running and marks the boot healthy (bootcount=0) once sensord has stayed up for HEALTHY_AFTER seconds.
+# one, ntpd running, restarts Wi-Fi while the router stays silent for NET_TIMEOUT seconds and marks
+# the boot healthy (bootcount=0) once sensord has stayed up for HEALTHY_AFTER seconds.
 . /etc/profile
 
 STATE=/userdata/open-cgs2
@@ -8,6 +9,7 @@ LOG=$STATE/supervisor.log
 OPT=/opt/open-cgs2
 UI=$OPT/ui
 HEALTHY_AFTER=60
+NET_TIMEOUT=120
 
 export LC_ALL=zh_CN.utf8 XDG_RUNTIME_DIR=/var/run QT_QPA_FONTDIR=/usr/share/fonts
 export QT_PLUGIN_PATH=$OPT/qt/plugins
@@ -30,6 +32,9 @@ trim() {
 }
 
 now() { cut -d. -f1 /proc/uptime; }
+
+# The router dhcpcd was given, which LAN-only mode keeps out of the routing table.
+router() { dhcpcd -U wlan0 2>/dev/null | sed -n "s/^routers='\{0,1\}\([0-9.]*\).*/\1/p" | head -n 1; }
 
 # Files in /userdata can lose their executable bit across a reboot on some firmware.
 chmod 755 $OPT/sensord $OPT/panel 2>/dev/null
@@ -57,6 +62,9 @@ screen_since=0
 sensord_since=$(now)
 restarts=0
 window_start=$(now)
+net_checked=0
+net_ok=$(now)
+net_lost=0
 
 while :; do
   t=$(now)
@@ -86,6 +94,24 @@ while :; do
   trim $STATE/screen.log
   trim $STATE/sensord.log
 
+  if [ $((t - net_checked)) -ge 30 ] && ! grep -q wifi_disabled=true /data/etc/setting.ini; then
+    net_checked=$t
+    gateway=$(router)
+    if [ -z "$gateway" ] || ping -c 1 -W 2 $gateway >/dev/null 2>&1; then
+      [ $net_lost = 0 ] || log "network back after $((t - net_lost)) s"
+      net_ok=$t
+      net_lost=0
+    elif [ $((t - net_ok)) -ge $NET_TIMEOUT ]; then
+      [ $net_lost != 0 ] || net_lost=$net_ok
+      log "no reply from $gateway for $((t - net_lost)) s, restarting Wi-Fi"
+      killall wpa_supplicant 2>/dev/null
+      /etc/init.d/S41dhcpcd stop </dev/null >/dev/null 2>&1
+      ip link set wlan0 down
+      ip link set wlan0 up
+      sleep 1
+      net_ok=$t
+    fi
+  fi
   if ! pidof wpa_supplicant >/dev/null && ! grep -q wifi_disabled=true /data/etc/setting.ini; then
     log "restarting wpa_supplicant"
     wpa_supplicant -Dnl80211 -iwlan0 -c/data/cfg/wpa_supplicant.conf </dev/null >/dev/null 2>&1 &
