@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl
+      - name: Rust tests
+        run: cargo test --workspace
+      - name: Screen tests
+        run: |
+          sudo apt-get update && sudo apt-get install -y python3-pyqt5 python3-pyqt5.qtquick qml-module-qtquick2 qml-module-qtquick-window2 qml-module-qtqml-models2
+          python3 -m unittest discover -s tests -v
+      - name: Device build
+        run: scripts/bundle.sh
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency: release
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl,x86_64-unknown-linux-musl,x86_64-pc-windows-gnu,x86_64-apple-darwin,aarch64-apple-darwin
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+      - name: Version
+        run: |
+          day=$(date -u +%Y.%m.%d)
+          n=$(gh release list --limit 100 --json tagName --jq "[.[] | select(.tagName | startswith(\"v$day.\"))] | length")
+          echo "OPEN_CGS2_VERSION=v$day.$(printf %02d $((n + 1)))" >> "$GITHUB_ENV"
+      - name: Device files
+        run: scripts/bundle.sh
+      - name: Installers
+        run: |
+          pip install ziglang
+          export CGS2_BUNDLE=$PWD/dist/bundle.tar
+          for t in x86_64-unknown-linux-musl x86_64-pc-windows-gnu x86_64-apple-darwin aarch64-apple-darwin; do
+            cargo zigbuild --release -p cgs2 --target $t
+          done
+          cp target/x86_64-unknown-linux-musl/release/cgs2 dist/cgs2-linux-x86_64
+          cp target/x86_64-pc-windows-gnu/release/cgs2.exe dist/cgs2-windows-x86_64.exe
+          cp target/x86_64-apple-darwin/release/cgs2 dist/cgs2-macos-x86_64
+          cp target/aarch64-apple-darwin/release/cgs2 dist/cgs2-macos-arm64
+          mv dist/bundle.tar dist/open-cgs2-device.tar
+      - name: Release
+        run: |
+          gh release create "$OPEN_CGS2_VERSION" --target "$GITHUB_SHA" --title "$OPEN_CGS2_VERSION" --generate-notes \
+            dist/cgs2-* dist/open-cgs2-device.tar
