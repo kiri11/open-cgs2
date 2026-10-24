@@ -208,6 +208,7 @@ impl Config {
         let ha = v["home_assistant"]["url"].as_str().map(host).unwrap_or_default();
         let has_ha = !ha.is_empty();
         let name = v["device"]["name"].as_str().unwrap_or("CGS2").to_string();
+        let location = if v["location"]["latitude"].is_number() { v["location"].clone() } else { detected["location"].clone() };
         let mut enabled: Vec<(String, Value, Value)> = Vec::new();
         for (dir, manifest) in manifests(ui) {
             let opts = v["components"][&dir].clone();
@@ -217,7 +218,7 @@ impl Config {
             };
             let on = match setting {
                 Value::Bool(b) => b,
-                Value::String(s) if s == "auto" => auto(&dir, has_ha, v, &detected),
+                Value::String(s) if s == "auto" => auto(&dir, has_ha, v, &detected, &location),
                 _ => false,
             };
             if on {
@@ -241,7 +242,7 @@ impl Config {
         let weather = match opts("weather") {
             None => Weather::None,
             Some(o) => {
-                let (lat, lon) = (v["location"]["latitude"].as_f64(), v["location"]["longitude"].as_f64());
+                let (lat, lon) = (location["latitude"].as_f64(), location["longitude"].as_f64());
                 match (o["entity"].as_str().or(d["weather"].as_str().filter(|_| o["source"] == "home_assistant")), lat, lon) {
                     (Some(e), _, _) => Weather::Entity(e.into()),
                     (None, Some(latitude), Some(longitude)) => Weather::OpenMeteo { latitude, longitude },
@@ -297,7 +298,7 @@ impl Config {
             fahrenheit: v["units"]["temperature"] == "F",
             clock24: v["units"]["clock"] != "12h",
             calibration: v["calibration"].clone(),
-            location: if v["location"]["latitude"].is_number() { v["location"].clone() } else { detected["location"].clone() },
+            location,
             port: v["port"].as_u64().unwrap_or(8099) as u16,
             components,
             pages: v["pages"].clone(),
@@ -327,7 +328,7 @@ impl Config {
 }
 
 /// Whether a component set to `auto` turns on.
-fn auto(name: &str, has_ha: bool, v: &Value, d: &Value) -> bool {
+fn auto(name: &str, has_ha: bool, v: &Value, d: &Value, location: &Value) -> bool {
     let found = |k: &str| !d[k].is_null() && d[k] != json!([]);
     match name {
         "lights" => found("lights"),
@@ -336,7 +337,7 @@ fn auto(name: &str, has_ha: bool, v: &Value, d: &Value) -> bool {
         "spotify" => found("spotify"),
         "calendar" => found("calendars"),
         "doorbell" => found("doorbell"),
-        "weather" => v["location"]["latitude"].is_number() || found("weather"),
+        "weather" => location["latitude"].is_number() || found("weather"),
         "intercom" => v["components"]["intercom"]["key"].is_string() || v["components"]["intercom"]["peers"].is_array(),
         _ => has_ha,
     }
@@ -383,6 +384,15 @@ mod tests {
         let names: Vec<&str> = c.components.iter().filter_map(|c| c["name"].as_str()).collect();
         assert_eq!(names, ["path"]);
         assert!(!c.clock24);
+    }
+
+    #[test]
+    fn weather_uses_home_assistants_location_unless_told_otherwise() {
+        let d = json!({"weather": "weather.home", "location": {"latitude": 1.0, "longitude": 2.0}});
+        let c = Config::build(&json!({}), &ui(), d.clone());
+        assert!(matches!(c.weather, Weather::OpenMeteo { latitude, .. } if latitude == 1.0));
+        let c = Config::build(&json!({"components": {"weather": {"source": "home_assistant"}}}), &ui(), d);
+        assert!(matches!(c.weather, Weather::Entity(ref e) if e == "weather.home"));
     }
 
     #[test]
