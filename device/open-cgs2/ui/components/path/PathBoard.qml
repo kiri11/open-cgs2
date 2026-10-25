@@ -26,19 +26,22 @@ Item {
     property bool failed: false
     readonly property bool loaded: received > 0
     readonly property bool stale: loaded && now - received > 90000
-    // Destinations as cards: two towards New York, then two towards New Jersey.
+    // Destinations as cards: two towards New York, then two towards New Jersey, in the order of
+    // `routes` so they stay put as trains come and go.
     readonly property var lines: {
         var out = [], seen = {};
         for (var dir = 0; dir < 2; dir++) {
-            var n = 0;
-            for (var i = 0; i < trains.length && n < 2; i++) {
+            var dests = [];
+            for (var i = 0; i < trains.length; i++) {
                 var t = trains[i];
                 if (t.dir !== dir || seen[t.headsign])
                     continue;
                 seen[t.headsign] = true;
-                out.push({ headsign: t.headsign, label: shortName(t.headsign), color: t.color, y: slots[dir * 2 + n] });
-                n++;
+                var r = routes.indexOf(route(t.headsign));
+                dests.push({ headsign: t.headsign, label: shortName(t.headsign), color: t.color, rank: r < 0 ? routes.length : r });
             }
+            dests.sort(function(a, b) { return a.rank - b.rank; });
+            dests.slice(0, 2).forEach(function(d, n) { d.y = slots[dir * 2 + n]; out.push(d); });
         }
         return out;
     }

@@ -91,5 +91,13 @@ class ScreenTests(unittest.TestCase):
         o = component.create()
         self.assertEqual(o.property("wtc").toVariant(), [15.0, 21.0])
 
+    def test_path_cards_keep_their_order(self):
+        qml = ('import QtQuick 2.14\nimport "%s"\nPathBoard { station: "GRV"; fetcher: function(url, done) { done(%s) }'
+               ' Component.onCompleted: active = true; property var labels: lines.map(function(l) { return l.label }) }'
+               % ((ROOT / "device/open-cgs2/ui/components/path").as_uri(), json.dumps(emulator.ridepath())))
+        component = QQmlComponent(self.engine)
+        component.setData(qml.encode(), QUrl())
+        self.assertEqual(component.create().property("labels").toVariant(), ["WTC", "33rd", "Newark", "JSQ"])
+
 if __name__ == "__main__":
     unittest.main()

@@ -70,7 +70,7 @@ def ridepath():
     msgs = lambda heads: [{"headSign": h, "lineColor": c, "secondsToArrival": str(s)} for h, c, s in heads]
     return {"results": [{"consideredStation": "GRV", "destinations": [
         {"label": "ToNY", "messages": msgs([("World Trade Center", "D93A30", 240), ("33rd Street", "FF9900", 420), ("World Trade Center", "D93A30", 900)])},
-        {"label": "ToNJ", "messages": msgs([("Newark", "D93A30", 300), ("Journal Square via Hoboken", "4D92FB,FF9900", 660)])}]},
+        {"label": "ToNJ", "messages": msgs([("Newark", "D93A30", 780), ("Journal Square via Hoboken", "4D92FB,FF9900", 660)])}]},
         {"consideredStation": "JSQ", "destinations": [
             {"label": "ToNY", "messages": msgs([("World Trade Center", "D93A30", 1000)])}]}]}
 
