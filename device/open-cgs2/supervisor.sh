@@ -33,8 +33,13 @@ trim() {
 
 now() { cut -d. -f1 /proc/uptime; }
 
-# The router dhcpcd was given, which LAN-only mode keeps out of the routing table.
-router() { dhcpcd -U wlan0 2>/dev/null | sed -n "s/^routers='\{0,1\}\([0-9.]*\).*/\1/p" | head -n 1; }
+# The default route's gateway, else the router dhcpcd was given, which LAN-only mode keeps out of
+# the routing table (dhcpcd -U needs a lease file, which read-only firmware does not keep).
+router() {
+  gw=$(ip route | sed -n 's/^default via \([0-9.]*\).*/\1/p' | head -n 1)
+  [ -n "$gw" ] || gw=$(dhcpcd -U wlan0 2>/dev/null | sed -n "s/^routers='\{0,1\}\([0-9.]*\).*/\1/p" | head -n 1)
+  echo "$gw"
+}
 
 # Files in /userdata can lose their executable bit across a reboot on some firmware.
 chmod 755 $OPT/sensord $OPT/panel 2>/dev/null
