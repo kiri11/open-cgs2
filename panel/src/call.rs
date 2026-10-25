@@ -1,6 +1,6 @@
-//! Calls: when the `calls` component is on, every timed calendar event lights the screen and
-//! shows itself 10 minutes before it starts; if nobody has closed it 5 minutes before, the panel
-//! says so out loud.
+//! Calls: when the `calls` component is on, every timed calendar event (or only those with its
+//! `link` in their description or location) lights the screen and shows itself 10 minutes before
+//! it starts; if nobody has closed it 5 minutes before, the panel says so out loud.
 use crate::{ha::Cmd, log, screen, Shared};
 use serde_json::{json, Value};
 use std::sync::mpsc::Sender;
@@ -35,7 +35,7 @@ impl Status {
 fn step(st: &mut Status, events: &[Value], now: i64) -> (bool, Option<String>) {
     let calls: Vec<Call> = events
         .iter()
-        .filter(|e| e["all_day"] == false)
+        .filter(|e| e["all_day"] == false && e["call"] == true)
         .filter_map(|e| Some(Call { summary: e["summary"].as_str()?.into(), start: e["start"].as_i64()? }))
         .collect();
     st.shown.retain(|c| c.start > now);
@@ -100,8 +100,9 @@ mod tests {
     #[test]
     fn shows_once_announces_once_and_closes_at_the_start() {
         let events = [
-            json!({"summary": "Day", "all_day": true, "start": 1000}),
-            json!({"summary": "Consultation", "all_day": false, "start": 1000}),
+            json!({"summary": "Lunch", "all_day": false, "call": false, "start": 1000}),
+            json!({"summary": "Day", "all_day": true, "call": true, "start": 1000}),
+            json!({"summary": "Consultation", "all_day": false, "call": true, "start": 1000}),
         ];
         let mut st = Status::default();
         assert_eq!(step(&mut st, &events, 1000 - SHOW - 1), (false, None));

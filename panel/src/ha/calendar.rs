@@ -13,11 +13,14 @@ fn midnight(date: &str) -> Option<i64> {
     Some(t - history::offset(t))
 }
 
-fn event(e: &Value) -> Option<Value> {
+/// An event as the screen shows it; `call` when it has `link` in its description or location, or
+/// there is no `link`.
+fn event(e: &Value, link: Option<&str>) -> Option<Value> {
     let (start, end) = (e["start"].as_str()?, e["end"].as_str()?);
     let all_day = start.len() == 10;
     let at = |s: &str| if all_day { midnight(s) } else { epoch(s) };
-    Some(json!({"summary": e["summary"].as_str()?.trim(), "all_day": all_day, "start": at(start)?, "end": at(end)?}))
+    let call = link.is_none_or(|l| ["description", "location"].iter().any(|k| e[k].as_str().is_some_and(|t| t.contains(l))));
+    Some(json!({"summary": e["summary"].as_str()?.trim(), "all_day": all_day, "start": at(start)?, "end": at(end)?, "call": call}))
 }
 
 impl Session {
@@ -39,11 +42,26 @@ impl Session {
             .into_iter()
             .flat_map(|o| o.values())
             .flat_map(|c| c["events"].as_array().into_iter().flatten())
-            .filter_map(event)
+            .filter_map(|e| event(e, self.shared.cfg.calls_link.as_deref()))
             .collect();
         events.sort_by_key(|e| e["start"].as_i64());
         if self.shared.read(|s| s.calendar != events) {
             self.shared.update(|s| s.calendar = events);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn events_with_the_link_are_calls() {
+        let e = json!({"summary": "Consultation", "start": "2026-10-22T10:00:00-04:00", "end": "2026-10-22T11:00:00-04:00",
+            "description": "Join: https://meet.google.com/abc-defg-hij"});
+        let call = |e: &Value, link| event(e, link).unwrap()["call"].clone();
+        assert_eq!(call(&e, None), true);
+        assert_eq!(call(&e, Some("meet.google.com/")), true);
+        assert_eq!(call(&json!({"summary": "Lunch", "start": e["start"], "end": e["end"]}), Some("meet.google.com/")), false);
     }
 }

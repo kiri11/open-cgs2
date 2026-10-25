@@ -66,6 +66,8 @@ pub struct Config {
     /// Calendars whose events in the next 24 hours show on the home screen.
     pub calendars: Vec<String>,
     pub calls: bool,
+    /// Text a timed event's description or location must have to be a call.
+    pub calls_link: Option<String>,
     pub climate: Option<String>,
     pub doorbell: Option<doorbell::Doorbell>,
     pub mic: audio::MicConfig,
@@ -289,6 +291,7 @@ impl Config {
             weather,
             calendars,
             calls: opts("calls").is_some(),
+            calls_link: opts("calls").and_then(|o| o["link"].as_str().filter(|l| !l.is_empty()).map(String::from)),
             climate: thermostat.as_ref().and_then(|o| o["entity"].as_str().or(d["climate"].as_str()).map(String::from)),
             doorbell: opts("doorbell").and_then(|o| doorbell::Doorbell::from_json(if o["camera"].is_string() { &o } else { &d["doorbell"] })),
             intercom: opts("intercom").and_then(|o| intercom::Intercom::from_json(&o, &name)),
