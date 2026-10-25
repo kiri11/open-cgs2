@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-adb_client = { version = "3.2", default-features = false }
 dialoguer = "0.12"
 rsa = { version = "0.9", features = ["pem"] }
 serde_json = "1"

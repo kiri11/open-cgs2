@@ -2,7 +2,7 @@
 //! public half in adb's format for the device's /adb_keys.
 use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey, LineEnding};
 use rsa::traits::PublicKeyParts;
-use rsa::{BigUint, RsaPrivateKey};
+use rsa::{BigUint, Pkcs1v15Sign, RsaPrivateKey};
 use std::path::PathBuf;
 
 const BITS: usize = 2048;
@@ -15,20 +15,31 @@ pub fn path() -> PathBuf {
         .join("adbkey")
 }
 
-/// Loads the key, making one first if there is none, and returns its public half.
-pub fn public() -> Result<String, String> {
+/// Loads the key, making one first if there is none.
+fn load() -> Result<RsaPrivateKey, String> {
     let path = path();
-    let key = match std::fs::read_to_string(&path) {
-        Ok(pem) => RsaPrivateKey::from_pkcs8_pem(&pem).map_err(|e| format!("{}: {e}", path.display()))?,
+    match std::fs::read_to_string(&path) {
+        Ok(pem) => RsaPrivateKey::from_pkcs8_pem(&pem).map_err(|e| format!("{}: {e}", path.display())),
         Err(_) => {
             let key = RsaPrivateKey::new(&mut rsa::rand_core::OsRng, BITS).map_err(|e| e.to_string())?;
             let pem = key.to_pkcs8_pem(LineEnding::LF).map_err(|e| e.to_string())?;
             std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
             std::fs::write(&path, pem.as_bytes()).map_err(|e| format!("{}: {e}", path.display()))?;
-            key
+            Ok(key)
         }
-    };
+    }
+}
+
+pub fn public() -> Result<String, String> {
+    let key = load()?;
     Ok(encode(key.n(), key.e()))
+}
+
+/// Signs an ADB auth token, which adbd checks as if it were a SHA-1 digest.
+pub fn sign(token: &[u8]) -> Result<Vec<u8>, String> {
+    const SHA1: [u8; 15] = [0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14];
+    let padding = Pkcs1v15Sign { hash_len: Some(token.len()), prefix: Box::new(SHA1) };
+    load()?.sign(padding, token).map_err(|e| e.to_string())
 }
 
 /// Android's RSAPublicKey (libcrypto_utils' android_pubkey_encode), base64, with a comment.
