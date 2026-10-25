@@ -260,9 +260,18 @@ pub fn device_config(d: &mut Device) -> Value {
     d.sh(&format!("cat {STATE}/config.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(json!({}))
 }
 
-fn read_json(path: &str) -> Result<Value, String> {
+/// Reads a config.json and gives it the household key unless it has one or intercom is off.
+fn read_config(path: &str) -> Result<Value, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
-    serde_json::from_str(&text).map_err(|e| format!("{path}: {e}"))
+    let mut c: Value = serde_json::from_str(&text).map_err(|e| format!("{path}: {e}"))?;
+    let intercom = &mut c["components"]["intercom"];
+    match intercom {
+        Value::Bool(false) => {}
+        Value::Object(o) if o.contains_key("key") || o.get("enabled") == Some(&json!(false)) => {}
+        Value::Object(o) => drop(o.insert("key".into(), json!(wizard::household_key()?))),
+        _ => *intercom = json!({"enabled": intercom.as_bool().map_or(json!("auto"), |b| json!(b)), "key": wizard::household_key()?}),
+    }
+    Ok(c)
 }
 
 fn run(args: &[String]) -> Result<(), String> {
@@ -283,7 +292,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("install") => {
             let bundle = Bundle::load(value("--bundle").as_deref())?;
             let ssh_key = value("--ssh-key").map(|p| std::fs::read_to_string(&p).map_err(|e| format!("{p}: {e}"))).transpose()?;
-            let config = value("--config").map(|p| read_json(&p)).transpose()?;
+            let config = value("--config").map(|p| read_config(&p)).transpose()?;
             let mut d = Device::connect(&host()?)?;
             install(&mut d, &bundle, &Options { config, lan_only: flag("--lan-only"), open_adb: flag("--open-adb"), ssh_key })
         }
@@ -291,7 +300,7 @@ fn run(args: &[String]) -> Result<(), String> {
         Some("config") => {
             let mut d = Device::connect(&host()?)?;
             let config = match args.get(2) {
-                Some(path) => read_json(path)?,
+                Some(path) => read_config(path)?,
                 None => wizard::config(&device_config(&mut d), &Bundle::load(None).map(|b| b.components()).unwrap_or_default())?,
             };
             push_config(&mut d, &config)

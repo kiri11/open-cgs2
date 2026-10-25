@@ -18,7 +18,7 @@ fn yes(prompt: &str, default: bool) -> Result<bool, String> {
 }
 
 /// The household key shared by every unit this PC installs, so their intercoms find each other.
-fn household_key() -> Result<String, String> {
+pub fn household_key() -> Result<String, String> {
     let dir = std::env::var_os("APPDATA")
         .map(|d| PathBuf::from(d).join("open-cgs2"))
         .or_else(|| std::env::home_dir().map(|h| h.join(".config/open-cgs2")))
