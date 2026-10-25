@@ -36,7 +36,7 @@ Item {
                 if (t.dir !== dir || seen[t.headsign])
                     continue;
                 seen[t.headsign] = true;
-                out.push({ headsign: t.headsign, label: t.headsign, color: t.color, y: slots[dir * 2 + n] });
+                out.push({ headsign: t.headsign, label: shortName(t.headsign), color: t.color, y: slots[dir * 2 + n] });
                 n++;
             }
         }
@@ -52,6 +52,12 @@ Item {
         { match: "journal square", stops: { "33S": 0, "23S": 102, "14S": 211, "09S": 271, CHR: 391, HOB: 1188, NEW: 1410, GRV: 1650, JSQ: 1927 } },
         { match: "hoboken", stops: { WTC: 0, EXP: 222, NEW: 518, HOB: 740 } }
     ]
+
+    readonly property var names: ({ "World Trade Center": "WTC", "33rd Street": "33rd", "Journal Square": "JSQ" })
+
+    function shortName(name) {
+        return names[name] || name;
+    }
 
     function route(headSign) {
         var h = headSign.toLowerCase();
@@ -72,7 +78,7 @@ Item {
                     for (var j = 0; j < dests.length; j++)
                         for (var k = 0; k < dests[j].messages.length; k++) {
                             var m = dests[j].messages[k];
-                            at.push({ name: m.headSign, headsign: m.headSign.replace(/ via .*/, ""), via: / via /.test(m.headSign), dir: dests[j].label === "ToNY" ? 0 : 1,
+                            at.push({ name: m.headSign, headsign: m.headSign.replace(/ via .*/, ""), via: m.headSign.split(" via ")[1] || "", dir: dests[j].label === "ToNY" ? 0 : 1,
                                       color: "#" + m.lineColor.split(",")[0], "in": parseInt(m.secondsToArrival) });
                         }
                 }
@@ -160,7 +166,7 @@ Item {
                 x: 50
                 width: 210
                 anchors.verticalCenter: parent.verticalCenter
-                text: card.line.label + (card.times.length && card.times[0].via ? " (via)" : "")
+                text: card.line.label + (card.times.length && card.times[0].via ? "/" + board.shortName(card.times[0].via) : "")
                 fontSizeMode: Text.HorizontalFit
                 minimumPixelSize: 22
                 font.family: board.fontMedium
