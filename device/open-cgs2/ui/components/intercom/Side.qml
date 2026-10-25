@@ -7,7 +7,7 @@ HoldToTalk {
     property var config
     property bool compact
     width: 208; height: 64
-    visible: app.intercom !== null
+    readonly property bool shown: app.intercom !== null
     label: held ? "Talking" : "Hold to talk"
     fontFamily: app.fontMedium
     onHeldChanged: app.talkHeld = held

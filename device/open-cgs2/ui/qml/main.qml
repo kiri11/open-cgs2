@@ -548,7 +548,17 @@ Window {
 
             Column {
                 id: side
-                x: 480; y: sideItems.count > 1 ? 96 : 124
+                // Side items that are showing; an item hides itself with `shown: false`.
+                readonly property int shown: {
+                    var n = 0;
+                    for (var i = 0; i < sideItems.count; i++) {
+                        var l = sideItems.itemAt(i);
+                        if (l && l.item && l.item.shown !== false)
+                            n++;
+                    }
+                    return n;
+                }
+                x: 480; y: shown > 1 ? 96 : 124
                 width: 208
                 spacing: 16
                 Repeater {
@@ -557,10 +567,11 @@ Window {
                     Loader {
                         anchors.horizontalCenter: parent.horizontalCenter
                         source: componentUrl(modelData, "side")
+                        visible: item !== null && item.shown !== false
                         onLoaded: {
                             item.app = root;
                             item.config = modelData.config;
-                            item.compact = Qt.binding(function() { return sideItems.count > 1; });
+                            item.compact = Qt.binding(function() { return side.shown > 1; });
                         }
                     }
                 }

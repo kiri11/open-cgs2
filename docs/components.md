@@ -39,7 +39,8 @@ components/
 Every item the screen loads gets two properties, so declare them: `app`, the screen, and `config`,
 the component's object from config.json (`{}` when there is none). Pages also get `active` (shown
 and the screen on); status items get `room` (the width left before the buttons); side items get
-`compact` (they share the column).
+`compact` (they share the column) and can declare `shown` to hide themselves and give the others
+the room.
 
 ## What `app` offers
 
