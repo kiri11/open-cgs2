@@ -47,6 +47,8 @@ pub struct State {
     pub screen: bool,
     /// The power key was held: the screen asks whether to power off.
     pub power_menu: bool,
+    /// `{"at", "view"}`: the screen saves a screenshot of the view (`cgs2 screenshot`).
+    pub shot: Value,
     pub phase: &'static str,
     pub heard: String,
     pub reply: String,
@@ -141,6 +143,7 @@ impl Shared {
             "ha": s.connected,
             "screen": s.screen,
             "power_menu": s.power_menu,
+            "shot": s.shot,
             "sensors": sensors,
             "groups": groups,
             "assist": {"phase": s.phase, "heard": s.heard, "reply": s.reply, "error": s.error},
@@ -275,6 +278,13 @@ fn handle(mut req: tiny_http::Request, shared: &Shared, tx: &mpsc::Sender<ha::Cm
         }
         (Method::Post, "/call/dismiss") => {
             call::dismiss(shared);
+            let _ = req.respond(json_response("{}".into()));
+            return;
+        }
+        (Method::Post, "/screenshot") => {
+            let view = query.strip_prefix("view=").unwrap_or_default().to_string();
+            let at = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
+            shared.update(|s| s.shot = json!({"at": at, "view": view}));
             let _ = req.respond(json_response("{}".into()));
             return;
         }

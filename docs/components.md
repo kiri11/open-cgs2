@@ -148,9 +148,21 @@ python emulator/emulator.py --view weather --shot weather.png
 ```
 
 `--config` takes a config.json (the default is `emulator/demo.json`) for the components, pages
-and units. For the device's look, copy its fonts (`/usr/share/fonts/DIN_Condensed_QP.ttf`,
-`Roboto-Regular.ttf` and `Roboto-Medium.ttf`) into `emulator/fonts`. Components that only use
-`app` work unchanged; one with a backend needs its state added to the emulator's `Panel`.
+and units. Components that only use `app` work unchanged; one with a backend needs its state added
+to the emulator's `Panel`.
+
+The device's fonts are not in the repo. Copy them from a device into `emulator/fonts` and the
+emulator matches the screen to within a pixel or two of text:
+
+```bash
+cgs2 fonts 192.0.2.10
+```
+
+To compare, take the same view on the device:
+
+```bash
+cgs2 screenshot 192.0.2.10 weather.png weather
+```
 
 On a device, `cgs2 update HOST --bundle dist/device` after `scripts/bundle.sh` installs your
 change, or copy just the component's folder and restart the screen with `killall qmlscene`.

@@ -107,6 +107,19 @@ Window {
 
     onScreenOnChanged: if (!screenOn) goHome()
     onStChanged: Fmt.clock24 = !st.units || st.units.clock !== "12h"
+    // `cgs2 screenshot` asks for one through the panel: it opens the view, saves it and goes home.
+    readonly property double shotAt: st.shot ? st.shot.at : 0
+    onShotAtChanged: if (shotAt > Date.now() - 5000) { showView(st.shot.view); shotTimer.restart(); }
+    Timer {
+        id: shotTimer
+        interval: 1500
+        onTriggered: contentItem.grabToImage(function(r) {
+            r.saveToFile("/tmp/open-cgs2-shot.png");
+            if (st.shot.view) { modal = ""; airOpen = false; chartOpen = false; goHome(); }
+        })
+    }
+    // The window's own color is not part of a grab.
+    Rectangle { anchors.fill: parent; color: root.color }
 
     FontLoader { id: din; source: "file:///usr/share/fonts/DIN_Condensed_QP.ttf" }
     FontLoader { id: roboto; source: "file:///usr/share/fonts/Roboto-Regular.ttf" }
@@ -216,6 +229,17 @@ Window {
         pages.currentIndex = homeColumn;
         if (homePages)
             homePages.currentIndex = homeRow;
+    }
+
+    // A view by the name `cgs2 screenshot` and the emulator use: a component page, music, air,
+    // chart, clock or settings.
+    function showView(view) {
+        if (view === "music") modal = "spotify";
+        else if (view === "air") airOpen = true;
+        else if (view === "chart") chartOpen = true;
+        else if (view === "clock") clockOpen = true;
+        else if (view === "settings") settingsOpen = true;
+        else if (view) openPage(view, false);
     }
 
     function openClock() { clockOpen = true; }

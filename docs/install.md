@@ -29,6 +29,8 @@ cgs2 install 192.0.2.10 --config config.json
 | `cgs2 update HOST` | New device files; settings and history stay. |
 | `cgs2 config HOST [FILE]` | Asks for the settings again, or pushes FILE as config.json, and restarts the screen. |
 | `cgs2 logs HOST [NAME]` | The last lines of `panel`, `sensord`, `screen`, `supervisor` or `boot`. |
+| `cgs2 screenshot HOST FILE [VIEW]` | Saves the screen as a PNG, or a view: a page (`weather`, ...), `music`, `air`, `chart`, `clock` or `settings`. |
+| `cgs2 fonts HOST [DIR]` | Copies the device's fonts for the [emulator](components.md#the-emulator) (`emulator/fonts`). |
 | `cgs2 uninstall HOST [--purge]` | Restores the stock firmware's files; `--purge` also deletes the settings and history. |
 
 The installer keeps its ADB key in `~/.android/adbkey`, the same file Google's adb uses, and makes

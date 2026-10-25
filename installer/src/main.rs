@@ -29,6 +29,9 @@ Usage:
   cgs2 update HOST [--bundle DIR]  new device files, settings kept
   cgs2 config HOST [FILE]      change settings, or push FILE as config.json
   cgs2 logs HOST [NAME]        panel, sensord, screen, supervisor or boot (default panel)
+  cgs2 screenshot HOST FILE [VIEW]  save the screen as a PNG, or a view: a page (weather, ...),
+                               music, air, chart, clock or settings
+  cgs2 fonts HOST [DIR]        copy the device's fonts for the emulator (default emulator/fonts)
   cgs2 uninstall HOST [--purge]  restore the stock firmware; --purge also removes settings and history
 ";
 
@@ -251,6 +254,33 @@ pub fn logs(d: &mut Device, name: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn screenshot(d: &mut Device, file: &str, view: &str) -> Result<(), String> {
+    const SHOT: &str = "/tmp/open-cgs2-shot.png";
+    if !view.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+        return Err(format!("no view named {view}"));
+    }
+    d.sh(&format!("rm -f {SHOT}; wget -qO /dev/null --post-data= 'http://127.0.0.1:8099/screenshot?view={view}'"))?;
+    for _ in 0..20 {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        if d.test(&format!("[ -s {SHOT} ]")) {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            return std::fs::write(file, d.pull(SHOT)?).map_err(|e| format!("{file}: {e}"));
+        }
+    }
+    Err("the screen saved no screenshot; is open-cgs2 running?".into())
+}
+
+/// The device's fonts are Qingping's, so the emulator takes them from a device instead of the repo.
+pub fn fonts(d: &mut Device, dir: &str) -> Result<(), String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("{dir}: {e}"))?;
+    for path in d.sh("ls /usr/share/fonts/*.ttf")?.split_whitespace() {
+        let name = path.rsplit('/').next().unwrap_or(path);
+        std::fs::write(Path::new(dir).join(name), d.pull(path)?).map_err(|e| format!("{dir}/{name}: {e}"))?;
+        println!("{dir}/{name}");
+    }
+    Ok(())
+}
+
 pub fn push_config(d: &mut Device, config: &Value) -> Result<(), String> {
     d.push(serde_json::to_string_pretty(config).unwrap().as_bytes(), &format!("{STATE}/config.json"), 0o600)?;
     restart(d)
@@ -306,6 +336,8 @@ fn run(args: &[String]) -> Result<(), String> {
             push_config(&mut d, &config)
         }
         Some("logs") => logs(&mut Device::connect(&host()?)?, args.get(2).map_or("panel", String::as_str)),
+        Some("screenshot") => screenshot(&mut Device::connect(&host()?)?, args.get(2).ok_or_else(|| HELP.to_string())?, args.get(3).map_or("", String::as_str)),
+        Some("fonts") => fonts(&mut Device::connect(&host()?)?, args.get(2).map_or("emulator/fonts", String::as_str)),
         Some("uninstall") => uninstall(&mut Device::connect(&host()?)?, flag("--purge")),
         Some(other) => Err(format!("unknown command {other}\n\n{HELP}")),
     }

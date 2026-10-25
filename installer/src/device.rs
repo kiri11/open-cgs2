@@ -117,6 +117,23 @@ impl Device {
         }
         self.sh(&format!("chmod {mode:o} '{tmp}' && mv '{tmp}' '{path}'")).map(drop)
     }
+
+    pub fn pull(&mut self, path: &str) -> Result<Vec<u8>, String> {
+        let request = [&b"RECV"[..], &(path.len() as u32).to_le_bytes(), path.as_bytes(), b"QUIT\0\0\0\0"].concat();
+        let reply = self.call("sync:", &request)?;
+        let (mut i, mut out) = (0, Vec::new());
+        while let Some(head) = reply.get(i..i + 8) {
+            let n = u32::from_le_bytes(head[4..].try_into().unwrap()) as usize;
+            let body = reply.get(i + 8..i + 8 + n).unwrap_or_default();
+            match &head[..4] {
+                b"DATA" => out.extend(body),
+                b"DONE" => return Ok(out),
+                _ => return Err(format!("{path}: {}", String::from_utf8_lossy(body))),
+            }
+            i += 8 + n;
+        }
+        Err(format!("{path}: the device stopped sending"))
+    }
 }
 
 /// The sync protocol's SEND of one file, in DATA blocks of at most 64 KiB, then QUIT.
@@ -162,8 +179,9 @@ mod tests {
     use std::net::TcpListener;
 
     /// Stands in for the firmware's adbd: messages of at most 4096 bytes, and a stream closes only
-    /// once its last write is acknowledged. Returns what was written to sync streams.
-    fn adbd(listener: TcpListener) -> Vec<u8> {
+    /// once its last write is acknowledged. Returns what was written to sync streams, and sends
+    /// `file` for a RECV.
+    fn adbd(listener: TcpListener, file: Vec<u8>) -> Vec<u8> {
         let (tcp, _) = listener.accept().unwrap();
         tcp.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
         let mut d = Device { tcp, max: MAX as usize, streams: 100, host: "adbd".into() };
@@ -183,7 +201,13 @@ mod tests {
                     synced.extend(&data);
                     d.send(OKAY, to, from, &[]).unwrap();
                     if synced.ends_with(b"QUIT\0\0\0\0") {
-                        d.send(WRTE, to, from, b"OKAY\0\0\0\0").unwrap();
+                        let reply = match synced.starts_with(b"RECV") {
+                            true => [&b"DATA"[..], &(file.len() as u32).to_le_bytes(), &file, b"DONE\0\0\0\0"].concat(),
+                            false => b"OKAY\0\0\0\0".to_vec(),
+                        };
+                        for c in reply.chunks(MAX as usize) {
+                            d.send(WRTE, to, from, c).unwrap();
+                        }
                     }
                 }
                 OKAY => d.send(CLSE, to, from, &[]).unwrap(),
@@ -197,7 +221,7 @@ mod tests {
     fn pushes_in_messages_adbd_takes() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap().to_string();
-        let server = std::thread::spawn(move || adbd(listener));
+        let server = std::thread::spawn(move || adbd(listener, Vec::new()));
         let data: Vec<u8> = (0..100_000u32).map(|i| i as u8).collect();
         Device::connect(&addr).unwrap().push(&data, "/tmp/f", 0o644).unwrap();
         let synced = server.join().unwrap();
@@ -208,5 +232,16 @@ mod tests {
             i += 8 + word(i + 4);
         }
         assert_eq!((&synced[8..8 + word(4)], got), (&b"/tmp/f.new,33188"[..], data));
+    }
+
+    #[test]
+    fn pulls_a_file_sent_in_several_messages() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let file: Vec<u8> = (0..10_000u32).map(|i| i as u8).collect();
+        let sent = file.clone();
+        let server = std::thread::spawn(move || adbd(listener, sent));
+        assert_eq!(Device::connect(&addr).unwrap().pull("/tmp/f").unwrap(), file);
+        assert!(server.join().unwrap().starts_with(b"RECV\x06\0\0\0/tmp/f"));
     }
 }

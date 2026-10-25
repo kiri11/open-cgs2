@@ -262,17 +262,13 @@ def main():
     pass
     def show():
         view = args.view
-        if view in ("music", "air", "chart", "clock", "settings"):
-            {"music": lambda: window.setProperty("modal", "spotify"), "air": lambda: window.setProperty("airOpen", True),
-             "chart": lambda: window.setProperty("chartOpen", True), "clock": lambda: window.setProperty("clockOpen", True),
-             "settings": lambda: window.setProperty("settingsOpen", True)}[view]()
-        elif view == "assist":
+        if view == "assist":
             threading.Thread(target=panel.assist, daemon=True).start()
         elif view == "power":
             panel.change(lambda s: s.update(power_menu=True))
         elif view:
             from PyQt5.QtCore import Q_ARG, QMetaObject, QVariant
-            QMetaObject.invokeMethod(window, "openPage", Q_ARG(QVariant, view), Q_ARG(QVariant, False))
+            QMetaObject.invokeMethod(window, "showView", Q_ARG(QVariant, view))
 
     def shot():
         image = window.grabWindow()
