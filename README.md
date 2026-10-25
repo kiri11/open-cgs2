@@ -1,18 +1,23 @@
-# open-cgs2
+# Qingping Air Monitor 2 reimplementation in Rust
 
-Open replacement software for the **Qingping Air Monitor 2 (CGS2)**. It replaces the stock app with
-its own sensor daemon and a screen built from components: lights, thermostat, weather, Spotify,
-Home Assistant Assist, calendar, doorbell, intercom between units, timers and alarms. It works on
-its own, and it fits right in with Home Assistant.
+I went a little crazy and replaced the whole software stack of CGS2 the **Qingping Air Monitor 2 (CGS2)** 
+reimplemented in Rust + QML. Fixed bugs and made it 60x more performant (it helps with battery life).
+It doesn't connect to Qingping cloud anymore (privacy!).
+
+I also added a bunch of additional features: if you have a Home Assistant server it now has everything
+Apple HomeView does, and more: lights/thermostat/music control, voice assistant, doorbell streaming, 
+calendar reminders and even intercom (if you have more than one such device, they could talk to each other).
+It's even better than Apple's device, since theirs doesn't measure CO2 and doesn't allow you to install your own apps.
+
+The core functionality works without home assistant: sensors, weather, timers/alarms, etc.
+
+Since it's all open source, you can extend by adding your own pages or making it work differently, exactly how you like.
 
 | | | | |
 |---|---|---|---|
 | ![Home](docs/screenshots/home.png) | ![Weather](docs/screenshots/weather.png) | ![Thermostat](docs/screenshots/thermostat.png) | ![Spotify](docs/screenshots/music.png) |
 | ![Air quality](docs/screenshots/air.png) | ![Assist](docs/screenshots/assist.png) | ![Clock](docs/screenshots/clock.png) | ![PATH trains](docs/screenshots/path.png) |
 
-> Unofficial. Not affiliated with or endorsed by Qingping. Installing it may void your warranty; use
-> it at your own risk. Both firmware layouts known so far are supported, and the device can always
-> boot its stock firmware again.
 
 ## Why it beats the stock software
 
