@@ -227,8 +227,13 @@ def main():
     parser.add_argument("--shot", help="save a screenshot to this PNG after a few seconds and quit")
     parser.add_argument("--panel", action="store_true", help="use a real panel already listening on 127.0.0.1:8099 instead of made-up state")
     args = parser.parse_args()
+    if sys.platform == "win32":
+        # The device renders with FreeType; Windows' own engine draws DIN Condensed as Roboto and
+        # Roboto Medium as Medium, where the device shows Regular.
+        os.environ.setdefault("QT_QPA_PLATFORM", "windows:fontengine=freetype")
     if args.shot:
         # Qt's offscreen platform only renders on Linux; on Windows the window opens off screen.
+        # The software renderer draws text in grey levels as the device does, without subpixel colours.
         if sys.platform != "win32":
             os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         os.environ.setdefault("QT_QUICK_BACKEND", "software")
