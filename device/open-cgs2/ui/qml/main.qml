@@ -574,9 +574,9 @@ Window {
         levelNames: root.levelNames
         levelColors: root.levelColors
         pm: root.pm
-        fontDin: fontDin
-        fontFamily: fontFamily
-        fontMedium: fontMedium
+        fontDin: root.fontDin
+        fontFamily: root.fontFamily
+        fontMedium: root.fontMedium
         onClose: airOpen = false
         onChart: openChart(key)
         onSend: post(path)
@@ -593,9 +593,9 @@ Window {
         tabs: airKeys.indexOf(chartKey) >= 0 ? airTabs : climateTabs
         current: format(chartKey)
         currentColor: chartKey === "co2" ? co2Color(sensor("co2")) : level(chartKey) >= 0 ? levelColors[level(chartKey)] : "#e6ebf1"
-        fontDin: fontDin
-        fontFamily: fontFamily
-        fontMedium: fontMedium
+        fontDin: root.fontDin
+        fontFamily: root.fontFamily
+        fontMedium: root.fontMedium
         onPick: chartKey = key
         onClose: chartOpen = false
     }
@@ -647,9 +647,9 @@ Window {
         anchors.fill: parent
         visible: ringing !== null
         ringing: root.ringing
-        fontDin: fontDin
-        fontFamily: fontFamily
-        fontMedium: fontMedium
+        fontDin: root.fontDin
+        fontFamily: root.fontFamily
+        fontMedium: root.fontMedium
         onSend: post(path)
     }
 

@@ -73,5 +73,13 @@ class ScreenTests(unittest.TestCase):
         o = component.create()
         self.assertEqual((o.property("a"), o.property("b")), ("7:05 PM", "12:30 AM"))
 
+    def test_views_get_fonts(self):
+        def items(item):
+            yield item
+            for child in item.childItems():
+                yield from items(child)
+        empty = [i.metaObject().className() for i in items(self.window.contentItem()) if i.property("fontDin") == ""]
+        self.assertEqual(empty, [])
+
 if __name__ == "__main__":
     unittest.main()
