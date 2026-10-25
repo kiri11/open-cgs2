@@ -81,5 +81,15 @@ class ScreenTests(unittest.TestCase):
         empty = [i.metaObject().className() for i in items(self.window.contentItem()) if i.property("fontDin") == ""]
         self.assertEqual(empty, [])
 
+    def test_path_fills_in_trains_from_upstream(self):
+        qml = ('import QtQuick 2.14\nimport "%s"\nItem { PathBoard { id: b; station: "GRV"; hideUnder: 5;'
+               ' fetcher: function(url, done) { done(%s) } } Component.onCompleted: b.active = true;'
+               ' property var wtc: b.departures("World Trade Center").map(function(d) { return d.min }) }'
+               % ((ROOT / "device/open-cgs2/ui/components/path").as_uri(), json.dumps(emulator.ridepath())))
+        component = QQmlComponent(self.engine)
+        component.setData(qml.encode(), QUrl())
+        o = component.create()
+        self.assertEqual(o.property("wtc").toVariant(), [15.0, 21.0])
+
 if __name__ == "__main__":
     unittest.main()

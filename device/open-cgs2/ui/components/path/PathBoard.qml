@@ -43,22 +43,49 @@ Item {
         return out;
     }
 
+    // Seconds from each route's first station to the others, from PathWidgetXplat. The feed has only
+    // the next train or two per destination, so trains seen upstream stand in for the later ones.
+    readonly property var routes: [
+        { match: "world trade", stops: { NWK: 0, HAR: 102, JSQ: 763, GRV: 1050, EXP: 1230, WTC: 1434 } },
+        { match: "newark", stops: { WTC: 0, EXP: 204, GRV: 387, JSQ: 687, HAR: 1353, NWK: 1455 } },
+        { match: "33rd", stops: { JSQ: 0, GRV: 277, NEW: 517, HOB: 1015, CHR: 1537, "09S": 1657, "14S": 1718, "23S": 1838, "33S": 1940 } },
+        { match: "journal square", stops: { "33S": 0, "23S": 102, "14S": 211, "09S": 271, CHR: 391, HOB: 1188, NEW: 1410, GRV: 1650, JSQ: 1927 } },
+        { match: "hoboken", stops: { WTC: 0, EXP: 222, NEW: 518, HOB: 740 } }
+    ]
+
+    function route(headSign) {
+        var h = headSign.toLowerCase();
+        for (var i = 0; i < routes.length; i++)
+            if (h.indexOf(routes[i].match) >= 0)
+                return routes[i];
+        return null;
+    }
+
     function fetch() {
         fetcher(source, function(v) {
-            var list = [];
+            var byStation = {};
             try {
                 var results = v.results;
                 for (var i = 0; i < results.length; i++) {
-                    if (results[i].consideredStation !== station)
-                        continue;
+                    var at = byStation[results[i].consideredStation] = [];
                     var dests = results[i].destinations;
                     for (var j = 0; j < dests.length; j++)
                         for (var k = 0; k < dests[j].messages.length; k++) {
                             var m = dests[j].messages[k];
-                            list.push({ headsign: m.headSign.replace(/ via .*/, ""), via: / via /.test(m.headSign), dir: dests[j].label === "ToNY" ? 0 : 1,
-                                        color: "#" + m.lineColor.split(",")[0], "in": parseInt(m.secondsToArrival) });
+                            at.push({ name: m.headSign, headsign: m.headSign.replace(/ via .*/, ""), via: / via /.test(m.headSign), dir: dests[j].label === "ToNY" ? 0 : 1,
+                                      color: "#" + m.lineColor.split(",")[0], "in": parseInt(m.secondsToArrival) });
                         }
                 }
+                var list = (byStation[station] || []).slice();
+                for (var code in byStation)
+                    byStation[code].forEach(function(t) {
+                        var r = route(t.name);
+                        if (!r || !(station in r.stops) || !(code in r.stops) || r.stops[code] >= r.stops[station])
+                            return;
+                        var eta = t["in"] + r.stops[station] - r.stops[code];
+                        if (!list.some(function(o) { return o.name === t.name && Math.abs(o["in"] - eta) < 240; }))
+                            list.push(Object.assign({}, t, { "in": eta }));
+                    });
                 list.sort(function(a, b) { return a["in"] - b["in"]; });
                 trains = list;
                 received = Date.now();
