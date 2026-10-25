@@ -344,7 +344,7 @@ fn csv_row(r: &Readings, bat: &trh::Battery, backlight: i32) -> String {
 
 /// The readings rounded as the screen shows them and HA receives them.
 pub fn status(r: &Readings, bat: &trh::Battery) -> Value {
-    let round1 = |v: f32| (v * 10.0).round() / 10.0;
+    let round1 = |v: f32| (v as f64 * 10.0).round() / 10.0;
     serde_json::json!({
         "temperature": r.temperature.map(round1),
         "humidity": r.humidity.map(|h| round1(h.clamp(0.0, 100.0))),
@@ -473,5 +473,12 @@ mod tests {
         assert!((ini.float("LAST_POWEROFF_HUM").unwrap() - 65.4).abs() < 1e-4);
         assert!((ini.float("LAST_POWEROFF_TEMP_RAW").unwrap() - 22.3).abs() < 1e-4);
         assert_eq!(ini.float("LAST_POWEROFF_AVG_LIGHTNESS"), Some(296.0));
+    }
+
+    #[test]
+    fn status_has_one_decimal() {
+        let r = Readings { temperature: Some(21.1), humidity: Some(44.4), ..Default::default() };
+        let json = status(&r, &trh::Battery { status: "Charging".into(), current_ma: 0.0, capacity: 60 }).to_string();
+        assert!(json.contains(r#""temperature":21.1"#) && json.contains(r#""humidity":44.4"#), "{json}");
     }
 }
