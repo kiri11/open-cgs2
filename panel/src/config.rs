@@ -223,6 +223,13 @@ impl Config {
                 enabled.push((dir, manifest, if opts.is_object() { opts } else { json!({}) }));
             }
         }
+        // The Assist button is named after its pipeline unless config.json names it.
+        if let Some((_, _, o)) = enabled.iter_mut().find(|(d, _, _)| d == "assist").filter(|(_, _, o)| !o["name"].is_string()) {
+            let id = o["pipeline"].as_str().or(detected["preferred_pipeline"].as_str()).unwrap_or_default();
+            if let Some(name) = detected["pipelines"][id].as_str() {
+                o["name"] = json!(name);
+            }
+        }
         let opts = |name: &str| enabled.iter().find(|(d, _, _)| d == name).map(|(_, _, o)| o.clone());
         let d = &detected;
         let groups = opts("lights").map_or_else(Vec::new, |o| groups(if o["groups"].is_array() { &o["groups"] } else { &d["lights"] }));
@@ -354,6 +361,8 @@ mod tests {
             "lights": [{"id": "kitchen", "name": "Kitchen", "entities": ["light.kitchen"]}],
             "climate": "climate.hall",
             "assist": true,
+            "pipelines": {"p1": "Luna", "p2": "Other"},
+            "preferred_pipeline": "p1",
             "spotify": {"entity": "media_player.spotify", "sources": ["Kitchen speaker"], "recent": false},
             "units": [{"name": "Bedroom", "entities": {"co2": "sensor.bedroom_co2"}}],
         });
@@ -362,6 +371,7 @@ mod tests {
         let c = Config::build(&v, &ui(), detected);
         let names: Vec<&str> = c.components.iter().filter_map(|c| c["name"].as_str()).collect();
         assert_eq!(names, ["assist", "lights", "spotify", "thermostat", "weather"]);
+        assert_eq!(c.components[0]["config"]["name"], "Luna");
         assert_eq!(c.ha, "ha.local:8123");
         assert_eq!(c.groups[0].entities, ["light.kitchen"]);
         assert_eq!(c.music.as_ref().unwrap().default, "kitchen_speaker");

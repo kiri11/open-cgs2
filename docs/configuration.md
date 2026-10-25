@@ -70,7 +70,7 @@ settings. Left out, a component takes the default from its manifest:
 | `weather` | auto | there is a `location`, or Home Assistant has a weather entity | `entity`: a Home Assistant weather entity instead of Open-Meteo; `source: "home_assistant"` to prefer the one Home Assistant has. |
 | `lights` | auto | Home Assistant has lights in areas: a tile per area (up to five) and All off | `groups`: `[{"name", "entities": [...], "off_only"}]` instead. |
 | `thermostat` | auto | Home Assistant has a `climate` entity | `entity`; `stale_after`: minutes without an update before the values dim (90; `0` never dims them). |
-| `assist` | auto | Home Assistant is set up | `pipeline`: an Assist pipeline ID instead of the preferred one; `name`: the button's label. |
+| `assist` | auto | Home Assistant is set up | `pipeline`: an Assist pipeline ID instead of the preferred one; `name`: the button's label instead of the pipeline's name. |
 | `spotify` | auto | Home Assistant has the Spotify integration | `entity`; `speakers`: `[{"name", "spotify": [Connect names], "entity": a player that plays Spotify itself}]`, else the account's Connect devices; `default`: speaker ID; `mixes`: `[{"name", "uri"}]` for Spotify-made playlists, which the integration cannot list. |
 | `calendar` | auto | Home Assistant has calendars | `calendars`: entity IDs, else all of them. |
 | `calls` | off | | Every timed calendar event lights the screen 10 minutes before it starts and is announced 5 minutes before, through the Assist pipeline's voice. |

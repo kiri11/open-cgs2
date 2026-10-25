@@ -91,6 +91,9 @@ pub fn analyze(entities: &Value, devices: &Value, areas: &Value, states: &Value,
     out.insert("weather".into(), json!(ids("weather").first()));
     out.insert("calendars".into(), json!(ids("calendar")));
     out.insert("assist".into(), json!(pipelines["pipelines"].as_array().is_some_and(|p| !p.is_empty())));
+    let names: Map<String, Value> = pipelines["pipelines"].as_array().into_iter().flatten().filter_map(|p| Some((p["id"].as_str()?.into(), p["name"].clone()))).collect();
+    out.insert("pipelines".into(), json!(names));
+    out.insert("preferred_pipeline".into(), pipelines["preferred_pipeline"].clone());
 
     let spotify = usable.iter().find(|e| e["platform"] == "spotify" && e["entity_id"].as_str().is_some_and(|id| id.starts_with("media_player.")));
     out.insert(
@@ -171,7 +174,8 @@ mod tests {
             {"entity_id": "calendar.work", "state": "off"}
         ]);
         let services = json!({"spotify": {}});
-        let d = analyze(&entities, &devices, &areas, &states, &services, &json!({"pipelines": [{}]}), "aaaa");
+        let pipelines = json!({"pipelines": [{"id": "p1", "name": "Luna"}], "preferred_pipeline": "p1"});
+        let d = analyze(&entities, &devices, &areas, &states, &services, &pipelines, "aaaa");
         assert_eq!(d["lights"][0], json!({"id": "kitchen", "name": "Kitchen", "entities": ["light.ceiling"]}));
         assert_eq!(d["lights"][1]["entities"], json!(["light.desk"]));
         assert_eq!(d["lights"][2]["entities"], json!(["light.ceiling", "light.desk"]));
@@ -183,6 +187,7 @@ mod tests {
         assert_eq!(d["units"], json!([{"name": "Bedroom", "entities": {"co2": "sensor.other_co2"}}]));
         assert_eq!(d["device_id"], "u1");
         assert_eq!(d["assist"], true);
+        assert_eq!((&d["pipelines"], &d["preferred_pipeline"]), (&json!({"p1": "Luna"}), &json!("p1")));
         assert!(d["weather"].is_null());
     }
 }
