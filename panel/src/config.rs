@@ -67,8 +67,6 @@ pub struct Config {
     pub calendars: Vec<String>,
     pub calls: bool,
     pub climate: Option<String>,
-    /// Minutes without an update after which the thermostat page dims its values.
-    pub climate_stale: Option<u64>,
     pub doorbell: Option<doorbell::Doorbell>,
     pub mic: audio::MicConfig,
     pub intercom: Option<intercom::Intercom>,
@@ -285,7 +283,6 @@ impl Config {
             calendars,
             calls: opts("calls").is_some(),
             climate: thermostat.as_ref().and_then(|o| o["entity"].as_str().or(d["climate"].as_str()).map(String::from)),
-            climate_stale: thermostat.as_ref().and_then(|o| o["stale_after"].as_u64()),
             doorbell: opts("doorbell").and_then(|o| doorbell::Doorbell::from_json(if o["camera"].is_string() { &o } else { &d["doorbell"] })),
             intercom: opts("intercom").and_then(|o| intercom::Intercom::from_json(&o, &name)),
             mic: audio::MicConfig {

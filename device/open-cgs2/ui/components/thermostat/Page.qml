@@ -5,7 +5,7 @@ ThermostatBoard {
     property var app
     property var config
     climate: app.st.climate
-    staleMinutes: config.stale_after || 0
+    staleMinutes: config.stale_after === undefined ? 90 : config.stale_after
     outside: app.sensor("outside")
     outsideRh: app.sensor("outside_rh")
     fontDin: app.fontDin
