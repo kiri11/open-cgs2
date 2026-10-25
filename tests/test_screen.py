@@ -5,6 +5,7 @@ import os
 import sys
 import threading
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -98,6 +99,18 @@ class ScreenTests(unittest.TestCase):
         component = QQmlComponent(self.engine)
         component.setData(qml.encode(), QUrl())
         self.assertEqual(component.create().property("labels").toVariant(), ["WTC", "33rd", "Newark", "JSQ"])
+
+    def test_path_counts_from_last_updated(self):
+        feed = emulator.ridepath()
+        updated = (datetime.now(timezone(timedelta(hours=-4))) - timedelta(seconds=90)).isoformat()
+        for m in feed["results"][0]["destinations"][0]["messages"]:
+            m["lastUpdated"] = updated
+        qml = ('import QtQuick 2.14\nimport "%s"\nPathBoard { station: "GRV"; fetcher: function(url, done) { done(%s) }'
+               ' Component.onCompleted: active = true; property var wtc: departures("World Trade Center").map(function(d) { return d.min }) }'
+               % ((ROOT / "device/open-cgs2/ui/components/path").as_uri(), json.dumps(feed)))
+        component = QQmlComponent(self.engine)
+        component.setData(qml.encode(), QUrl())
+        self.assertEqual(component.create().property("wtc").toVariant(), [2.0, 13.0, 21.0])
 
 if __name__ == "__main__":
     unittest.main()

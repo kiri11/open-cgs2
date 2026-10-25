@@ -72,7 +72,7 @@ Item {
 
     function fetch() {
         fetcher(source, function(v) {
-            var byStation = {};
+            var byStation = {}, fetched = Date.now();
             try {
                 var results = v.results;
                 for (var i = 0; i < results.length; i++) {
@@ -81,8 +81,10 @@ Item {
                     for (var j = 0; j < dests.length; j++)
                         for (var k = 0; k < dests[j].messages.length; k++) {
                             var m = dests[j].messages[k];
+                            // Countdowns are as of lastUpdated, often a minute or more before the feed is served.
+                            var updated = Date.parse((m.lastUpdated || "").replace(/(\.\d{3})\d+/, "$1"));
                             at.push({ name: m.headSign, headsign: m.headSign.replace(/ via .*/, ""), via: m.headSign.split(" via ")[1] || "", dir: dests[j].label === "ToNY" ? 0 : 1,
-                                      color: "#" + m.lineColor.split(",")[0], "in": parseInt(m.secondsToArrival) });
+                                      color: "#" + m.lineColor.split(",")[0], "in": parseInt(m.secondsToArrival) - (isNaN(updated) ? 0 : (fetched - updated) / 1000) });
                         }
                 }
                 var list = (byStation[station] || []).slice();
