@@ -12,6 +12,8 @@ It's even better than Apple's device, since theirs doesn't measure CO2 and doesn
 The core functionality works without home assistant: sensors, weather, timers/alarms, etc.
 
 Since it's all open source, you can extend by adding your own pages or making it work differently, exactly how you like.
+For example, you can implement Matter protocol to add the device directly to Google Home or Apple Home without Home Assistant.
+Please publish a fork and let me know if you do.
 
 | | | | |
 |---|---|---|---|
@@ -64,6 +66,13 @@ Try the screen on your computer first with the [emulator](docs/components.md#the
 ```bash
 python emulator/emulator.py
 ```
+
+## How to use it
+
+Once installed you should see sensor measurements, lights and assistant buttons on the main screen.
+Swipe in different directions to see other pages.
+Long press on power button to reveal power off / restart / settings menu.
+Short press on the power button to toggle the screen or just touch it when off to wake.
 
 ## Credits
 
