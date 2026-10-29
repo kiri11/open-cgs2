@@ -103,7 +103,8 @@ pub fn config(current: &Value, components: &[(String, Value)]) -> Result<Value, 
         .collect();
     let on = |name: &str, m: &Value| match &c["components"][name] {
         Value::Bool(b) => *b,
-        o => !matches!(o.get("enabled").unwrap_or(&m["default"]), Value::Bool(false)),
+        Value::Object(o) => o.get("enabled") != Some(&Value::Bool(false)),
+        _ => m["default"] != false,
     };
     let defaults: Vec<bool> = components.iter().map(|(n, m)| on(n, m)).collect();
     let chosen = MultiSelect::new().with_prompt("Components (space to toggle, enter to accept)").items(&labels).defaults(&defaults).interact().map_err(err)?;

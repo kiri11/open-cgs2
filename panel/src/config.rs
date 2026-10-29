@@ -214,7 +214,8 @@ impl Config {
             let opts = v["components"][&dir].clone();
             let setting = match &opts {
                 Value::Bool(b) => json!(b),
-                o => o.get("enabled").cloned().unwrap_or_else(|| manifest["default"].clone()),
+                Value::Object(o) => o.get("enabled").cloned().unwrap_or(json!(true)),
+                _ => manifest["default"].clone(),
             };
             let on = match setting {
                 Value::Bool(b) => b,
@@ -390,9 +391,10 @@ mod tests {
         let c = Config::build(&json!({}), &ui(), Value::Null);
         assert!(c.components.is_empty());
         assert!(c.ha.is_empty() && c.clock24 && !c.fahrenheit);
-        let c = Config::build(&json!({"components": {"path": true, "weather": {"enabled": false}}, "units": {"clock": "12h"}}), &ui(), Value::Null);
+        let c = Config::build(&json!({"components": {"path": true, "calls": {"link": "x"}, "weather": {"enabled": false}}, "units": {"clock": "12h"}}), &ui(), Value::Null);
         let names: Vec<&str> = c.components.iter().filter_map(|c| c["name"].as_str()).collect();
-        assert_eq!(names, ["path"]);
+        assert_eq!(names, ["calls", "path"]);
+        assert!(c.calls);
         assert!(!c.clock24);
     }
 
