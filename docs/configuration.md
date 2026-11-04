@@ -16,7 +16,7 @@ asks again, and `cgs2 config HOST config.json` pushes your own. Every key is opt
   "particulate": {"night": "22:00-08:30"},
   "pages": {"left": ["path"], "right": ["weather"], "up": ["thermostat"], "down": []},
   "components": {
-    "path": {"enabled": true, "station": "EXP"},
+    "path": {"station": "EXP"},
     "calls": true,
     "spotify": {"speakers": [{"name": "Kitchen"}, {"name": "Dining", "entity": "media_player.dining"}]}
   }
@@ -62,8 +62,8 @@ itself against the lowest level it sees each week; Settings can also calibrate i
 ## Components
 
 Each folder in `/opt/open-cgs2/ui/components` is a component. `components.<name>` is either `true`
-or `false`, or an object with `enabled` (`true`, `false` or `"auto"`) and the component's own
-settings. Left out, a component takes the default from its manifest:
+or `false`, or an object with the component's own settings, which turns it on unless its `enabled`
+is `false` or `"auto"`. Left out, a component takes the default from its manifest:
 
 | Component | Default | Turns on with `auto` when | Settings |
 |---|---|---|---|

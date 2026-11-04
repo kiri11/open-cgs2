@@ -28,9 +28,10 @@ def components(config):
     out = []
     for d in sorted((UI / "components").iterdir()):
         manifest = json.loads((d / "component.json").read_text(encoding="utf-8"))
-        opts = config.get("components", {}).get(d.name, {})
-        opts = {"enabled": opts} if isinstance(opts, bool) else opts
-        if opts.get("enabled", manifest.get("default")) is False:
+        opts = config.get("components", {}).get(d.name)
+        default = manifest.get("default") if opts is None else True
+        opts = {"enabled": opts} if isinstance(opts, bool) else opts or {}
+        if opts.get("enabled", default) is False:
             continue
         c = {"name": d.name, "position": manifest.get("position"), "order": manifest.get("order", 50),
              "layer": manifest.get("layer", 0), "config": opts}
