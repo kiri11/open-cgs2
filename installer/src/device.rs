@@ -1,7 +1,11 @@
-//! A CGS2 over ADB (TCP port 5555): shell commands with their output and exit status, and file
-//! pushes. The firmware's adbd always reports exit status 0, so commands echo theirs. It takes
+//! A CGS2 over ADB (TCP port 5555 or USB): shell commands with their output and exit status, and
+//! file pushes. The firmware's adbd always reports exit status 0, so commands echo theirs. It takes
 //! messages of at most 4096 bytes and closes a stream only after its last write is acknowledged,
 //! which adb_client 3.2 does not do, so this speaks the few ADB messages needed itself.
+use nusb::descriptors::TransferType;
+use nusb::io::{EndpointRead, EndpointWrite};
+use nusb::transfer::{Bulk, Direction, In, Out};
+use nusb::MaybeFuture;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -14,21 +18,54 @@ const CLSE: u32 = 0x4553_4c43;
 const WRTE: u32 = 0x4554_5257;
 const MAX: u32 = 4096;
 
+/// A byte stream to adbd. `flush` ends a USB transfer, as adbd reads each message part from its own.
+trait Link: Read + Write {}
+impl Link for TcpStream {}
+
+/// ADB's bulk endpoints, read in transfers of one full payload: adbd ends a payload of 4096 bytes
+/// with no short packet and waits for its OKAY, so a longer transfer would never complete.
+struct Usb(EndpointRead<Bulk>, EndpointWrite<Bulk>);
+impl Link for Usb {}
+
+impl Read for Usb {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+impl Write for Usb {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.1.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.1.flush_end()
+    }
+}
+
 pub struct Device {
-    tcp: TcpStream,
+    link: Box<dyn Link>,
     max: usize,
     streams: u32,
     pub host: String,
 }
 
 const STATUS: &str = "__open_cgs2_status=";
+const ADB_ON: &str = "is ADB on (Settings → About → tap Device Name 7 times → Developer options)?";
 
 impl Device {
+    /// Connects to `host`: an address, `usb` for the one device on USB, or a USB serial number.
     pub fn connect(host: &str) -> Result<Device, String> {
-        let addr = address(host)?;
-        let tcp = TcpStream::connect_timeout(&addr, Duration::from_secs(5)).map_err(|e| format!("{addr}: {e}; is ADB on (Settings → About → tap Device Name 7 times → Developer options)?"))?;
-        tcp.set_read_timeout(Some(Duration::from_secs(60))).and_then(|_| tcp.set_nodelay(true)).map_err(|e| e.to_string())?;
-        let mut d = Device { tcp, max: MAX as usize, streams: 0, host: host.into() };
+        let link: Box<dyn Link> = match host == "usb" || usb_serials().iter().any(|s| s == host) {
+            true => Box::new(open_usb(host)?),
+            false => {
+                let addr = address(host)?;
+                let tcp = TcpStream::connect_timeout(&addr, Duration::from_secs(5)).map_err(|e| format!("{addr}: {e}; {ADB_ON}"))?;
+                tcp.set_read_timeout(Some(Duration::from_secs(60))).and_then(|_| tcp.set_nodelay(true)).map_err(|e| e.to_string())?;
+                Box::new(tcp)
+            }
+        };
+        let mut d = Device { link, max: MAX as usize, streams: 0, host: host.into() };
         d.send(CNXN, 0x0100_0000, MAX, b"host::\0")?;
         let mut signed = false;
         loop {
@@ -47,17 +84,17 @@ impl Device {
 
     fn send(&mut self, cmd: u32, arg0: u32, arg1: u32, data: &[u8]) -> Result<(), String> {
         let sum = data.iter().map(|&b| b as u32).sum::<u32>();
-        let mut msg: Vec<u8> = [cmd, arg0, arg1, data.len() as u32, sum, !cmd].iter().flat_map(|v| v.to_le_bytes()).collect();
-        msg.extend(data);
-        self.tcp.write_all(&msg).map_err(|e| format!("{}: {e}", self.host))
+        let msg: Vec<u8> = [cmd, arg0, arg1, data.len() as u32, sum, !cmd].iter().flat_map(|v| v.to_le_bytes()).collect();
+        let mut write = |b: &[u8]| self.link.write_all(b).and_then(|_| self.link.flush());
+        write(&msg).and_then(|_| if data.is_empty() { Ok(()) } else { write(data) }).map_err(|e| format!("{}: {e}", self.host))
     }
 
     fn recv(&mut self) -> Result<(u32, u32, u32, Vec<u8>), String> {
         let mut h = [0u8; 24];
-        self.tcp.read_exact(&mut h).map_err(|e| format!("{}: {e}", self.host))?;
+        self.link.read_exact(&mut h).map_err(|e| format!("{}: {e}", self.host))?;
         let word = |i: usize| u32::from_le_bytes(h[i * 4..i * 4 + 4].try_into().unwrap());
         let mut data = vec![0; word(3) as usize];
-        self.tcp.read_exact(&mut data).map_err(|e| format!("{}: {e}", self.host))?;
+        self.link.read_exact(&mut data).map_err(|e| format!("{}: {e}", self.host))?;
         Ok((word(0), word(1), word(2), data))
     }
 
@@ -155,6 +192,41 @@ fn address(host: &str) -> Result<SocketAddr, String> {
     with_port.to_socket_addrs().map_err(|e| format!("{host}: {e}"))?.next().ok_or_else(|| format!("{host}: no address"))
 }
 
+fn adb_interface(i: &nusb::InterfaceInfo) -> bool {
+    (i.class(), i.subclass(), i.protocol()) == (0xff, 0x42, 0x01)
+}
+
+fn usb_devices() -> Vec<nusb::DeviceInfo> {
+    nusb::list_devices().wait().map_or(Vec::new(), |l| l.filter(|d| d.interfaces().any(adb_interface)).collect())
+}
+
+/// Serial numbers of the devices with ADB on USB.
+pub fn usb_serials() -> Vec<String> {
+    usb_devices().iter().map(|d| d.serial_number().unwrap_or_default().to_string()).collect()
+}
+
+/// Claims the ADB interface of the device with serial number `host`, or of the only one for `usb`.
+fn open_usb(host: &str) -> Result<Usb, String> {
+    let found: Vec<_> = usb_devices().into_iter().filter(|d| host == "usb" || d.serial_number() == Some(host)).collect();
+    let info = match &found[..] {
+        [d] => d,
+        [] => return Err(format!("no device with ADB on USB; {ADB_ON}")),
+        _ => return Err(format!("several devices on USB; name one: {}", usb_serials().join(", "))),
+    };
+    let fail = |e: nusb::Error| format!("{host}: {e}; is Google's adb running (adb kill-server)?");
+    let number = info.interfaces().find(|i| adb_interface(i)).unwrap().interface_number();
+    let interface = info.open().wait().and_then(|d| d.claim_interface(number).wait()).map_err(fail)?;
+    let bulk = |dir: Direction| {
+        let eps = interface.descriptor().into_iter().flat_map(|d| d.endpoints().collect::<Vec<_>>());
+        eps.into_iter().find(|e| e.transfer_type() == TransferType::Bulk && e.direction() == dir).map(|e| e.address()).ok_or(format!("{host}: no ADB endpoints"))
+    };
+    let mut read = interface.endpoint::<Bulk, In>(bulk(Direction::In)?).map_err(fail)?.reader(MAX as usize);
+    read.set_read_timeout(Duration::from_secs(60));
+    let mut write = interface.endpoint::<Bulk, Out>(bulk(Direction::Out)?).map_err(fail)?.writer(MAX as usize);
+    write.set_write_timeout(Duration::from_secs(60));
+    Ok(Usb(read, write))
+}
+
 /// Hosts on this PC's /24 with ADB's port open, the likely CGS2s.
 pub fn scan() -> Vec<String> {
     let Some(local) = std::net::UdpSocket::bind("0.0.0.0:0").and_then(|s| s.connect("192.0.2.1:9").and_then(|_| s.local_addr())).ok() else {
@@ -184,7 +256,7 @@ mod tests {
     fn adbd(listener: TcpListener, file: Vec<u8>) -> Vec<u8> {
         let (tcp, _) = listener.accept().unwrap();
         tcp.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
-        let mut d = Device { tcp, max: MAX as usize, streams: 100, host: "adbd".into() };
+        let mut d = Device { link: Box::new(tcp), max: MAX as usize, streams: 100, host: "adbd".into() };
         let mut synced = Vec::new();
         while let Ok((cmd, from, to, data)) = d.recv() {
             assert!(data.len() <= MAX as usize, "{} bytes", data.len());
@@ -210,7 +282,7 @@ mod tests {
                         }
                     }
                 }
-                OKAY => d.send(CLSE, to, from, &[]).unwrap(),
+                OKAY => drop(d.send(CLSE, to, from, &[])),
                 _ => {}
             }
         }

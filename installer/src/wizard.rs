@@ -36,12 +36,43 @@ pub fn household_key() -> Result<String, String> {
 }
 
 fn pick_device() -> Result<Device, String> {
-    println!("Looking for devices with ADB on this network…");
-    let mut found = device::scan();
-    found.push("Another address…".into());
-    let i = Select::new().with_prompt("Which CGS2?").items(&found).default(0).interact().map_err(err)?;
-    let host = if i == found.len() - 1 { ask("IP address (shown in Settings → Wi-Fi on the device)", "")? } else { found[i].clone() };
-    Device::connect(&host)
+    println!("Looking for devices with ADB on USB and on this network…");
+    let usb = device::usb_serials();
+    let mut found: Vec<String> = usb.iter().cloned().chain(device::scan()).collect();
+    let mut labels: Vec<String> = found.iter().map(|h| if usb.contains(h) { format!("{h} (USB)") } else { h.clone() }).collect();
+    labels.push("Another address…".into());
+    let i = Select::new().with_prompt("Which CGS2?").items(&labels).default(0).interact().map_err(err)?;
+    if i == found.len() {
+        found.push(ask("IP address (shown in Settings → Wi-Fi on the device)", "")?);
+    }
+    let d = Device::connect(&found[i])?;
+    if usb.contains(&found[i]) { wifi(d) } else { Ok(d) }
+}
+
+/// Offers to put a device on USB on Wi-Fi, and then to go on over Wi-Fi.
+fn wifi(mut d: Device) -> Result<Device, String> {
+    let ip = match crate::wifi_address(&mut d) {
+        Some(ip) => ip,
+        None if !yes("This CGS2 is not on Wi-Fi. Join a network now?", true)? => return Ok(d),
+        None => {
+            let mut names = crate::wifi_networks(&mut d);
+            names.push("Another network…".into());
+            let i = Select::new().with_prompt("Network").items(&names).default(0).interact().map_err(err)?;
+            let ssid = if i == names.len() - 1 { ask("Network name", "")? } else { names[i].clone() };
+            let password = Password::new().with_prompt("Password (empty for an open network)").allow_empty_password(true).interact().map_err(err)?;
+            crate::join_wifi(&mut d, &ssid, &password)?;
+            println!("Waiting for an address…");
+            let ip = (0..30).find_map(|_| {
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                crate::wifi_address(&mut d)
+            });
+            ip.ok_or(format!("no address on {ssid:?} after a minute; check the password and run the setup again"))?
+        }
+    };
+    match yes(&format!("On Wi-Fi at {ip}. Go on over Wi-Fi, so the USB cable can come out?"), false)? {
+        true => Device::connect(&ip),
+        false => Ok(d),
+    }
 }
 
 /// Asks for the settings, starting from `current`.

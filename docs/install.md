@@ -2,20 +2,32 @@
 
 ## What you need
 
-- A Qingping Air Monitor 2 (CGS2) on your Wi-Fi.
+- A Qingping Air Monitor 2 (CGS2).
 - ADB turned on: **Settings → About**, tap **Device Name** 7 times, then **Developer options → ADB**.
   ADB then answers as root on USB-C and on port 5555 of the device's address, with no password.
-- A computer on the same network. The installer has its own ADB client, so Google's adb is not
-  needed.
+- A computer on the same network, or a USB-C cable to it. The installer has its own ADB client,
+  so Google's adb and its driver are not needed: Windows binds its own WinUSB driver to the
+  device. On Linux, your user needs access to the device's node in `/dev/bus/usb` (a udev rule
+  for vendor `2207`); quit Google's adb (`adb kill-server`) if it runs, as it holds the device.
 
 ## The installer
 
 Download `cgs2` for your system from the releases and run it with no arguments for the
-step-by-step setup. It scans the network for devices with ADB, asks for the settings and installs.
-The same program has commands for scripts:
+step-by-step setup. It lists devices on USB and scans the network for devices with ADB, asks for
+the settings and installs. A device on USB that is not on Wi-Fi can join a network first: the
+setup lists the networks the device sees, adds the one you pick to
+`/data/cfg/wpa_supplicant.conf` the way the Settings screen does, waits for an address and then
+goes on over USB or over Wi-Fi.
+
+The same program has commands for scripts. `HOST` is the device's address, `usb` for the one
+device on USB, or its USB serial number:
 
 ```bash
 cgs2 status 192.0.2.10
+```
+
+```bash
+cgs2 status usb
 ```
 
 ```bash

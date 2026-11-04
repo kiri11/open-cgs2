@@ -15,7 +15,9 @@ const VERSION: &str = match option_env!("OPEN_CGS2_VERSION") {
 };
 const BUNDLE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bundle.tar"));
 const STATE: &str = "/userdata/open-cgs2";
-const HELP: &str = "cgs2: install open-cgs2 on Qingping CGS2 air monitors over ADB (port 5555)
+const HELP: &str = "cgs2: install open-cgs2 on Qingping CGS2 air monitors over ADB (port 5555 or USB)
+
+HOST is the device's address, usb for the one device on USB, or its USB serial number.
 
 Usage:
   cgs2                         step-by-step setup
@@ -246,6 +248,66 @@ pub fn status(d: &mut Device) -> Result<(), String> {
     Ok(())
 }
 
+const WPA_CONF: &str = "/data/cfg/wpa_supplicant.conf";
+
+/// The device's IPv4 address on Wi-Fi, if it has one.
+pub fn wifi_address(d: &mut Device) -> Option<String> {
+    let out = d.sh("ip -4 -o addr show wlan0").ok()?;
+    Some(out.split_whitespace().skip_while(|w| *w != "inet").nth(1)?.split('/').next()?.to_string())
+}
+
+/// Networks the device sees, strongest first.
+pub fn wifi_networks(d: &mut Device) -> Vec<String> {
+    let out = d.sh("wpa_cli -i wlan0 scan >/dev/null; sleep 4; wpa_cli -i wlan0 scan_results").unwrap_or_default();
+    let mut found: Vec<(i64, &str)> = out
+        .lines()
+        .skip(1)
+        .filter_map(|l| match l.split('\t').collect::<Vec<_>>()[..] {
+            [_, _, level, _, ssid] if !ssid.is_empty() && !ssid.contains("\x00") => Some((level.parse().unwrap_or(-100), ssid)),
+            _ => None,
+        })
+        .collect();
+    found.sort_by_key(|a| std::cmp::Reverse(a.0));
+    let mut names: Vec<String> = Vec::new();
+    for (_, s) in found {
+        if !names.iter().any(|n| n == s) {
+            names.push(s.to_string());
+        }
+    }
+    names
+}
+
+/// Adds a network to wpa_supplicant.conf, preferred over the ones there, the way the panel's
+/// Settings screen does, and reloads it.
+pub fn join_wifi(d: &mut Device, ssid: &str, password: &str) -> Result<(), String> {
+    let quote = |s: &str| format!("'{}'", s.replace('\'', r"'\''"));
+    let key = if password.is_empty() {
+        "\tkey_mgmt=NONE\n".to_string()
+    } else {
+        if !(8..=63).contains(&password.len()) {
+            return Err("the password must be 8 to 63 characters".into());
+        }
+        let out = d.sh(&format!("wpa_passphrase {} {}", quote(ssid), quote(password)))?;
+        let psk = out.lines().find_map(|l| l.trim().strip_prefix("psk=")).filter(|p| p.len() == 64).ok_or("wpa_passphrase failed")?;
+        format!("\tpsk={psk}\n\tkey_mgmt=WPA-PSK\n\tieee80211w=1\n")
+    };
+    let conf = d.sh(&format!("cat {WPA_CONF} 2>/dev/null || true"))?;
+    d.push(add_network(&conf, ssid, &key).as_bytes(), WPA_CONF, 0o600)?;
+    d.sh(&format!("pidof wpa_supplicant >/dev/null && wpa_cli -i wlan0 reconfigure >/dev/null || wpa_supplicant -B -Dnl80211 -iwlan0 -c{WPA_CONF}")).map(drop)
+}
+
+/// `conf` with a network block for `ssid` ahead of the others and with a higher priority.
+fn add_network(conf: &str, ssid: &str, key: &str) -> String {
+    let conf = if conf.trim().is_empty() { "ctrl_interface=/var/run/wpa_supplicant\nupdate_config=1\n" } else { conf };
+    let priority = conf.lines().filter_map(|l| l.trim().strip_prefix("priority=")?.parse::<i64>().ok()).max().unwrap_or(0) + 1;
+    let hex: String = ssid.bytes().map(|b| format!("{b:02x}")).collect();
+    let block = format!("network={{\n\tssid={hex}\n\tscan_ssid=1\n{key}\tpriority={priority}\n}}\n");
+    match conf.find("network={") {
+        Some(i) => format!("{}{block}\n{}", &conf[..i], &conf[i..]),
+        None => format!("{}\n\n{block}", conf.trim_end()),
+    }
+}
+
 pub fn logs(d: &mut Device, name: &str) -> Result<(), String> {
     if !["panel", "sensord", "screen", "supervisor", "boot"].contains(&name) {
         return Err(format!("no log named {name}"));
@@ -370,5 +432,13 @@ mod tests {
         assert!(names.contains(&"weather".to_string()) && names.contains(&"path".to_string()));
         assert_eq!(mode("open-cgs2/panel"), 0o755);
         assert_eq!(mode("open-cgs2/ui/qml/main.qml"), 0o644);
+    }
+
+    #[test]
+    fn adds_a_preferred_network() {
+        let old = "ctrl_interface=/var/run/wpa_supplicant\nupdate_config=1\n\nnetwork={\n\tssid=\"Old\"\n\tpriority=99\n}\n";
+        let new = add_network(old, "Café", "\tkey_mgmt=NONE\n");
+        assert_eq!(new, "ctrl_interface=/var/run/wpa_supplicant\nupdate_config=1\n\nnetwork={\n\tssid=436166c3a9\n\tscan_ssid=1\n\tkey_mgmt=NONE\n\tpriority=100\n}\n\nnetwork={\n\tssid=\"Old\"\n\tpriority=99\n}\n");
+        assert!(add_network("", "A", "\tkey_mgmt=NONE\n").starts_with("ctrl_interface=/var/run/wpa_supplicant\nupdate_config=1\n\nnetwork={\n\tssid=41\n"));
     }
 }
