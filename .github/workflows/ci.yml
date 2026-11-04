@@ -31,36 +31,63 @@ jobs:
     permissions:
       contents: write
     concurrency: release
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-unknown-linux-musl,x86_64-unknown-linux-musl,x86_64-pc-windows-gnu,x86_64-apple-darwin,aarch64-apple-darwin
+          targets: aarch64-unknown-linux-musl,x86_64-unknown-linux-musl,x86_64-pc-windows-gnu
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-zigbuild
       - name: Version
+        id: version
         run: |
           day=$(date -u +%Y.%m.%d)
           n=$(gh release list --limit 100 --json tagName --jq "[.[] | select(.tagName | startswith(\"v$day.\"))] | length")
-          echo "OPEN_CGS2_VERSION=v$day.$(printf %02d $((n + 1)))" >> "$GITHUB_ENV"
+          v=v$day.$(printf %02d $((n + 1)))
+          echo "OPEN_CGS2_VERSION=$v" >> "$GITHUB_ENV"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
       - name: Device files
         run: scripts/bundle.sh
       - name: Installers
         run: |
           pip install ziglang
           export CGS2_BUNDLE=$PWD/dist/bundle.tar
-          for t in x86_64-unknown-linux-musl x86_64-pc-windows-gnu x86_64-apple-darwin aarch64-apple-darwin; do
+          for t in x86_64-unknown-linux-musl x86_64-pc-windows-gnu; do
             cargo zigbuild --release -p cgs2 --target $t
           done
           cp target/x86_64-unknown-linux-musl/release/cgs2 dist/cgs2-linux-x86_64
           cp target/x86_64-pc-windows-gnu/release/cgs2.exe dist/cgs2-windows-x86_64.exe
-          cp target/x86_64-apple-darwin/release/cgs2 dist/cgs2-macos-x86_64
-          cp target/aarch64-apple-darwin/release/cgs2 dist/cgs2-macos-arm64
           mv dist/bundle.tar dist/open-cgs2-device.tar
       - name: Release
         run: |
           gh release create "$OPEN_CGS2_VERSION" --target "$GITHUB_SHA" --title "$OPEN_CGS2_VERSION" --generate-notes \
             dist/cgs2-* dist/open-cgs2-device.tar
+
+  macos:
+    needs: release
+    runs-on: macos-14
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPEN_CGS2_VERSION: ${{ needs.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+      - name: Installers
+        run: |
+          gh release download "$OPEN_CGS2_VERSION" -p open-cgs2-device.tar -D dist
+          export CGS2_BUNDLE=$PWD/dist/open-cgs2-device.tar
+          for t in x86_64-apple-darwin aarch64-apple-darwin; do
+            cargo build --release -p cgs2 --target $t
+          done
+          cp target/x86_64-apple-darwin/release/cgs2 dist/cgs2-macos-x86_64
+          cp target/aarch64-apple-darwin/release/cgs2 dist/cgs2-macos-arm64
+          gh release upload "$OPEN_CGS2_VERSION" dist/cgs2-macos-*
