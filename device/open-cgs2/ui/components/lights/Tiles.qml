@@ -30,21 +30,23 @@ Grid {
         x.send();
     }
 
+    // A count, not the groups: a changed array would rebuild every tile, ending a hold mid-drag.
     Repeater {
-        model: (app.st.groups || []).slice(0, 6)
+        model: Math.min(6, (app.st.groups || []).length)
         Tile {
-            label: modelData.name
-            icon: modelData.off_only ? "power" : ""
-            danger: modelData.off_only === true
+            readonly property var group: tiles.app.st.groups[index]
+            label: group.name
+            icon: group.off_only ? "power" : ""
+            danger: group.off_only === true
             fontFamily: tiles.app.fontMedium
-            on: modelData.on
-            lightRgb: modelData.rgb || [243, 182, 65]
-            brightness: modelData.brightness || 0
-            dimmable: modelData.dimmable === true
+            on: group.on
+            lightRgb: group.rgb || [243, 182, 65]
+            brightness: group.brightness || 0
+            dimmable: group.dimmable === true
             onAdjustingChanged: tiles.app.lightAdjusting = adjusting
-            onBrightnessRequested: tiles.setBrightness(modelData.id, value)
-            enabled: tiles.app.online && modelData.available && (!danger || on)
-            onClicked: tiles.app.post("/press/" + modelData.id)
+            onBrightnessRequested: tiles.setBrightness(group.id, value)
+            enabled: tiles.app.online && group.available && (!danger || on)
+            onClicked: tiles.app.post("/press/" + group.id)
         }
     }
 }

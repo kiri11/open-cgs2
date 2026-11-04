@@ -161,5 +161,40 @@ Item {
         self.assertEqual(self.tile.property("fillColor").name(), "#1a1f27")
 
 
+class TilesTests(unittest.TestCase):
+    def test_state_update_during_hold_keeps_the_tile(self):
+        view = QQuickView()
+        self.addCleanup(view.deleteLater)
+        self.addCleanup(view.close)
+        component = QQmlComponent(view.engine())
+        component.setData(('''
+import QtQuick 2.14
+import "%s"
+Item {
+    id: app
+    width: 720; height: 720
+    property string api: "http://127.0.0.1:1"
+    property bool online: true
+    property bool lightAdjusting: false
+    property string fontMedium: ""
+    property var st: ({ groups: [{ id: "a", name: "A", on: true, brightness: 100, dimmable: true, available: true }] })
+    function post(path) {}
+    Tiles { app: app }
+}
+''' % QML.as_uri()).encode(), QUrl())
+        root = component.create()
+        self.assertIsNotNone(root, [e.toString() for e in component.errors()])
+        view.setContent(QUrl(), component, root)
+        view.show()
+        QTest.mousePress(view, Qt.LeftButton, Qt.NoModifier, QPoint(50, 50))
+        QTest.qWait(520)
+        self.assertTrue(root.property("lightAdjusting"))
+        root.setProperty("st", {"groups": [{"id": "a", "name": "A", "on": True, "brightness": 150, "dimmable": True, "available": True}]})
+        QTest.qWait(30)
+        QTest.mouseRelease(view, Qt.LeftButton, Qt.NoModifier, QPoint(50, 50))
+        QTest.qWait(30)
+        self.assertFalse(root.property("lightAdjusting"))
+
+
 if __name__ == "__main__":
     unittest.main()
